@@ -12,6 +12,7 @@ import android.widget.TextView;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.bumptech.glide.Glide;
 import com.sbw.atrue.Order.Activity.ShoppingActivity;
 import com.sbw.atrue.Order.R;
 import com.sbw.atrue.Order.Entity.Product;
@@ -35,11 +36,13 @@ public class ProductListAdapter extends BaseAdapter {
     public int getCount() {
         return productsData.size();
     }
+
     //返回适配器内的某个子项
     @Override
     public Object getItem(int position) {
         return productsData.get(position);
     }
+
     //返回适配器内的某个子项的id号
     @Override
     public long getItemId(int position) {
@@ -77,11 +80,13 @@ public class ProductListAdapter extends BaseAdapter {
 
     /**
      * 初始化列表界面内容
+     *
      * @param viewHolder 控件暂存器
-     * @param product 当前位置的产品
+     * @param product    当前位置的产品
      */
     private void initListItem(final ViewHolder viewHolder, final Product product) {
-        viewHolder.picture.setImageResource(product.getPicture()); //设置商品图片
+//        viewHolder.picture.setImageResource(product.getPicture()); //设置商品图片
+        Glide.with(mContext).load(product.getPicture()).into(viewHolder.picture);
         viewHolder.name.setText(product.getName()); //设置商品名
         viewHolder.price.setText(String.valueOf("￥" + product.getPrice())); //设置商品价格
         viewHolder.sale.setText(String.valueOf("月售:" + product.getSale())); //设置商品月销售量
@@ -91,8 +96,9 @@ public class ProductListAdapter extends BaseAdapter {
 
     /**
      * 初始化按钮的点击事件
+     *
      * @param viewHolder 控件暂存器
-     * @param product 当前位置的产品
+     * @param product    当前位置的产品
      */
     private void initButtonEvent(final ViewHolder viewHolder, final Product product) {
         //给添加商品按钮添加点击事件
@@ -109,9 +115,9 @@ public class ProductListAdapter extends BaseAdapter {
                 //在被选择商品数标签上设置被选择商品数
                 viewHolder.selectedCount.setText(String.valueOf(product.getSelectedCount()));
                 //将被选择的商品总数和总价设置回购物界面
-                ((ShoppingActivity)mContext).setSelectedCountAndPrice(totalSelectedCount, totalPrice);
+                ((ShoppingActivity) mContext).setSelectedCountAndPrice(totalSelectedCount, totalPrice);
                 //将被选择的商品列表设置回购物界面
-                ((ShoppingActivity)mContext).setSelectedProducts(selectedProducts);
+                ((ShoppingActivity) mContext).setSelectedProducts(selectedProducts);
             }
         });
 
@@ -131,9 +137,9 @@ public class ProductListAdapter extends BaseAdapter {
                     //在被选择商品数标签上设置被选择商品数
                     viewHolder.selectedCount.setText(String.valueOf(product.getSelectedCount()));
                     //将被选择的商品总数和总价设置回购物界面
-                    ((ShoppingActivity)mContext).setSelectedCountAndPrice(totalSelectedCount, totalPrice);
+                    ((ShoppingActivity) mContext).setSelectedCountAndPrice(totalSelectedCount, totalPrice);
                     //将被选择的商品列表设置回购物界面
-                    ((ShoppingActivity)mContext).setSelectedProducts(selectedProducts);
+                    ((ShoppingActivity) mContext).setSelectedProducts(selectedProducts);
                 }
             }
         });
@@ -144,8 +150,9 @@ public class ProductListAdapter extends BaseAdapter {
 
     /**
      * 设置减去按钮的与被选择商品数量标签的可见性
+     *
      * @param viewHolder 控件暂存器
-     * @param product 当前位置的产品
+     * @param product    当前位置的产品
      */
     private void setSubButtonAndSelectCount(final ViewHolder viewHolder, Product product) {
         boolean show = product.getIsShowSubBtn(); //从Map中获取是否需要展示减去按钮

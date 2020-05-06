@@ -22,8 +22,6 @@ import com.sbw.atrue.Order.R;
  */
 public class FoodActivity extends AppCompatActivity {
 
-    public static final String food_NAME = "food_name";
-    public static final String food_IMAGE_ID = "food_image_id";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -11,14 +11,14 @@ public class Product implements Parcelable {
     private int id; //商品表示符
     private String name; //商品名
     private double price; //价格
-    private int picture; //商品图片
+    private String picture; //商品图片
     private int sale; //月销量
     private String shopName; //店铺名称
     private String detail; //产品描述
     private int selectedCount = 0; //已选择该商品的数量
     private boolean isShowSubBtn; //是否显示减去按钮
 
-    public Product(int id, String name, double price, int picture, int sale, String shopName, String detail, boolean isShowSubBtn) {
+    public Product(int id, String name, double price, String picture, int sale, String shopName, String detail, boolean isShowSubBtn) {
         this.id = id;
         this.name = name;
         this.price = price;
@@ -68,7 +68,7 @@ public class Product implements Parcelable {
     }
 
     //获取该商品的图片
-    public int getPicture() {
+    public String getPicture() {
         return picture;
     }
 
@@ -100,7 +100,7 @@ public class Product implements Parcelable {
     @Override
     public String toString() {
         return "Product[ name=" + name + ",price=" + price + ",picture=" + picture
-                + ",sale=" + sale + ",shopName=" + shopName + ",detail=" + detail + ",selectedCount=" + selectedCount+" ]";
+                + ",sale=" + sale + ",shopName=" + shopName + ",detail=" + detail + ",selectedCount=" + selectedCount + " ]";
     }
 
     //以下是实现Parcelable自动生成的内容
@@ -108,7 +108,7 @@ public class Product implements Parcelable {
         id = in.readInt();
         name = in.readString();
         price = in.readDouble();
-        picture = in.readInt();
+        picture = in.readString();
         sale = in.readInt();
         shopName = in.readString();
         detail = in.readString();
@@ -138,7 +138,7 @@ public class Product implements Parcelable {
         dest.writeInt(id);
         dest.writeString(name);
         dest.writeDouble(price);
-        dest.writeInt(picture);
+        dest.writeString(picture);
         dest.writeInt(sale);
         dest.writeString(shopName);
         dest.writeString(detail);

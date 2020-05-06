@@ -5,8 +5,10 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Build;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.RequiresApi;
+
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.navigation.NavigationView;
 
@@ -15,10 +17,13 @@ import androidx.drawerlayout.widget.DrawerLayout;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import androidx.appcompat.app.ActionBar;
 import androidx.appcompat.app.AppCompatActivity;
+
 import android.os.Bundle;
+
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.appcompat.widget.Toolbar;
+
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -29,7 +34,18 @@ import com.sbw.atrue.Order.Entity.Food;
 import com.sbw.atrue.Order.Util.FoodAdapter;
 import com.sbw.atrue.Order.R;
 import com.sbw.atrue.Order.Util.FoodFctory;
+import com.sbw.atrue.Order.Util.HttpUtil;
 import com.sbw.atrue.Order.Util.ShareUtils;
+import com.yanzhenjie.nohttp.NoHttp;
+import com.yanzhenjie.nohttp.RequestMethod;
+import com.yanzhenjie.nohttp.rest.OnResponseListener;
+import com.yanzhenjie.nohttp.rest.Request;
+import com.yanzhenjie.nohttp.rest.RequestQueue;
+import com.yanzhenjie.nohttp.rest.Response;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,26 +58,26 @@ import java.util.List;
  */
 public class OrderActivity extends AppCompatActivity {
     //从生产类中加载系统存储的菜单列表
-    private Food[] foods = FoodFctory.Beef;
-    private List<Food> foodList=new ArrayList<>();
+//    private Food[] foods = FoodFctory.Beef;
+    private List<Food> foodList = new ArrayList<>();
     private DrawerLayout mDrawerLayout;
     private FoodAdapter adapter;
     private SwipeRefreshLayout swipeRefresh;
-    private int first=0;
+    private int first = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order);
         //导入Toolbar的自定义布局形式
-        Toolbar toolbar=(Toolbar) findViewById(R.id.toolbar);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         //导入滑动菜单
-        mDrawerLayout=(DrawerLayout) findViewById(R.id.drawer_layout);
-        NavigationView navView=(NavigationView) findViewById(R.id.nav_view);
+        mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        NavigationView navView = (NavigationView) findViewById(R.id.nav_view);
         //获得ActionBar的实例，虽然此ActionBar具体实现是由ToolBar来完成的
-        ActionBar actionBar=getSupportActionBar();
-        if(actionBar!=null){
+        ActionBar actionBar = getSupportActionBar();
+        if (actionBar != null) {
             //将ActionBar的导航按钮HomeAsUp显示出来（Toolbar标题栏最左侧的按钮图标默认为箭头，含义为返回上一级活动）
             actionBar.setDisplayHomeAsUpEnabled(true);
             //更改导航按钮HomeAsUp的默认图标（箭头改为导航键）
@@ -77,18 +93,22 @@ public class OrderActivity extends AppCompatActivity {
                 switch (menuItem.getItemId()) {
                     case R.id.nav_Order:
                         //跳转到订单界面
-                        startActivity(new Intent(OrderActivity.this, ReadOrderActivity.class));break;
+                        startActivity(new Intent(OrderActivity.this, ReadOrderActivity.class));
+                        break;
                     case R.id.nav_money:
                         //跳转到钱包界面
-                        startActivity(new Intent(OrderActivity.this, MyMoneyActivity.class));break;
+                        startActivity(new Intent(OrderActivity.this, MyMoneyActivity.class));
+                        break;
                     case R.id.nav_setting:
                         //跳转到钱包界面
-                        startActivity(new Intent(OrderActivity.this, SettingActivity.class));break;
+                        startActivity(new Intent(OrderActivity.this, SettingActivity.class));
+                        break;
                     case R.id.nav_logout:
                         //跳转到登陆界面
                         startActivity(new Intent(OrderActivity.this, LoginActivity.class));
                         //结束当前界面
-                        OrderActivity.this.finish(); break;
+                        OrderActivity.this.finish();
+                        break;
                     default:
                         break;
                 }
@@ -96,7 +116,7 @@ public class OrderActivity extends AppCompatActivity {
             }
         });
         //悬浮按键的设置
-        FloatingActionButton fab=(FloatingActionButton) findViewById(R.id.fab);
+        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -140,10 +160,10 @@ public class OrderActivity extends AppCompatActivity {
                     @Override
                     public void run() {
                         //向菜单中增加新菜
-                        if(first==0){
-                            Food WanZi=new Food("牛肉丸",R.drawable.wanzi,"牛肉丸是潮汕美食啊！！！");
+                        if (first == 0) {
+                            Food WanZi = new Food("牛肉丸", "R.drawable.wanzi", "牛肉丸是潮汕美食啊！！！");
                             foodList.add(WanZi);
-                            first=1;
+                            first = 1;
                         }
                         //通知适配器数据发生了变化，用于RecycleView自动更新显示项
                         adapter.notifyDataSetChanged();
@@ -170,30 +190,71 @@ public class OrderActivity extends AppCompatActivity {
      */
     private void initFruits() {
         foodList.clear();
-        for (int i = 0; i < 9; i++) {
-            foodList.add(foods[i]);
-        }
+        String postUrl = HttpUtil.HOST + "api/food/list";
+        //1.创建一个队列
+        RequestQueue queue = NoHttp.newRequestQueue();
+        //2.创建消息请求   参数1:String字符串,传网址  参数2:请求方式
+        final Request<JSONObject> request = NoHttp.createJsonObjectRequest(postUrl, RequestMethod.POST);
+        //3.利用队列去添加消息请求
+        //使用request对象添加上传的对象添加键与值,post方式添加上传的数据
+
+        queue.add(1, request, new OnResponseListener<JSONObject>() {
+            @Override
+            public void onStart(int what) {
+
+            }
+
+            @Override
+            public void onSucceed(int what, Response<JSONObject> response) {
+                JSONObject res = response.get();
+                try {
+                    if (res.getInt("status") == 0) {
+                        JSONArray array = res.getJSONArray("data");
+                        for (int i = 0; i < array.length(); i++) {
+                            JSONObject data = array.getJSONObject(i);
+
+                            Food food = new Food(data.getString("name"), data.getString("imageId"), data.getString("description"));
+                            foodList.add(food);
+                        }
+                        adapter.notifyDataSetChanged();
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onFailed(int what, Response<JSONObject> response) {
+            }
+
+            @Override
+            public void onFinish(int what) {
+
+            }
+        });
     }
 
     /**
      * 加载toolbar.xml菜单文件
+     *
      * @param menu
      * @return
      */
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.toolbar,menu);
+        getMenuInflater().inflate(R.menu.toolbar, menu);
         return true;
     }
 
     /**
      * Toolbat导航栏按键的响应事件
+     *
      * @param item
      * @return
      */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()){
+        switch (item.getItemId()) {
             //android.R.id.home是标题栏最左侧按键HomeAsUp的Id
             case android.R.id.home:
                 //将滑动菜单展示出来，GravityCompat.START参数与XML文件定义的保持一致
@@ -202,7 +263,7 @@ public class OrderActivity extends AppCompatActivity {
             case R.id.backup:
                 Toast.makeText(this, "You click Backup", Toast.LENGTH_SHORT).show();
                 break;
-            case  R.id.delete:
+            case R.id.delete:
                 Toast.makeText(this, "You click Delete", Toast.LENGTH_SHORT).show();
                 break;
             case R.id.setting:

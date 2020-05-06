@@ -16,10 +16,22 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+import com.sbw.atrue.Order.Entity.Food;
 import com.sbw.atrue.Order.Entity.Product;
 import com.sbw.atrue.Order.R;
 import com.sbw.atrue.Order.Util.FoodFctory;
+import com.sbw.atrue.Order.Util.HttpUtil;
 import com.sbw.atrue.Order.Util.ProductListAdapter;
+import com.yanzhenjie.nohttp.NoHttp;
+import com.yanzhenjie.nohttp.RequestMethod;
+import com.yanzhenjie.nohttp.rest.OnResponseListener;
+import com.yanzhenjie.nohttp.rest.Request;
+import com.yanzhenjie.nohttp.rest.RequestQueue;
+import com.yanzhenjie.nohttp.rest.Response;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class ShoppingActivity extends Activity {
     public static ShoppingActivity mInstance = null; //当前对象的实例本身
@@ -41,8 +53,61 @@ public class ShoppingActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_shopping);
         initViews(); //初始化页面控件
-        productsData=FoodFctory.initDatas(); //初始化数据
+        initDatas(); //初始化数据
         initEvents(); //初始化控件事件
+    }
+
+    private void initDatas() {
+        productsData = new ArrayList<>();
+        String postUrl = HttpUtil.HOST + "api/food/productList";
+        //1.创建一个队列
+        RequestQueue queue = NoHttp.newRequestQueue();
+        //2.创建消息请求   参数1:String字符串,传网址  参数2:请求方式
+        final Request<JSONObject> request = NoHttp.createJsonObjectRequest(postUrl, RequestMethod.POST);
+        //3.利用队列去添加消息请求
+        //使用request对象添加上传的对象添加键与值,post方式添加上传的数据
+
+        queue.add(1, request, new OnResponseListener<JSONObject>() {
+            @Override
+            public void onStart(int what) {
+
+            }
+
+            @Override
+            public void onSucceed(int what, Response<JSONObject> response) {
+                JSONObject res = response.get();
+                try {
+                    if (res.getInt("status") == 0) {
+                        JSONArray array = res.getJSONArray("data");
+                        for (int i = 0; i < array.length(); i++) {
+                            JSONObject data = array.getJSONObject(i);
+
+                            Product product = new Product(data.getInt("id"),
+                                    data.getString("name"),
+                                    data.getDouble("price"),
+                                    data.getString("picture"),
+                                    data.getInt("sale"),
+                                    data.getString("shopName"),
+                                    data.getString("detail"), true);
+                            productsData.add(product);
+                        }
+                        productListAdapter.notifyDataSetChanged();
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onFailed(int what, Response<JSONObject> response) {
+            }
+
+            @Override
+            public void onFinish(int what) {
+
+            }
+        });
+
     }
 
     //初始化页面控件
@@ -143,7 +208,7 @@ public class ShoppingActivity extends Activity {
                     @Override
                     public int compare(Product product1, Product product2) { //比较商品
                         //如果本商品的价格大于第二个商品
-                        if (product1.getId()> product2.getId()) {
+                        if (product1.getId() > product2.getId()) {
                             return 1; //返回正数代表本商品大于第二个商品
                         }
                         return -1; //返回负数代表本商品小于第二个商品
@@ -176,9 +241,10 @@ public class ShoppingActivity extends Activity {
 
     /**
      * 为了方便，定义一个弹框控件的函数
+     *
      * @param msg 要显示的提示信息
      */
-    private void showDialog(String msg){
+    private void showDialog(String msg) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setMessage(msg)
                 .setCancelable(false)

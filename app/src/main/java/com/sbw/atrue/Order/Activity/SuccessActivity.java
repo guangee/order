@@ -15,15 +15,26 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import com.google.gson.Gson;
 import com.sbw.atrue.Order.Entity.Order;
 import com.sbw.atrue.Order.Entity.ProductOrder;
 import com.sbw.atrue.Order.R;
 import com.sbw.atrue.Order.Entity.Product;
+import com.sbw.atrue.Order.Util.HttpUtil;
 import com.sbw.atrue.Order.Util.ShareUtils;
+import com.yanzhenjie.nohttp.NoHttp;
+import com.yanzhenjie.nohttp.RequestMethod;
+import com.yanzhenjie.nohttp.rest.JsonObjectRequest;
+import com.yanzhenjie.nohttp.rest.OnResponseListener;
+import com.yanzhenjie.nohttp.rest.Request;
+import com.yanzhenjie.nohttp.rest.RequestQueue;
+import com.yanzhenjie.nohttp.rest.Response;
 
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.litepal.tablemanager.Connector;
 
-public class SuccessActivity extends Activity{
+public class SuccessActivity extends Activity {
     private TextView tvResult; //订单信息显示文字控件
     private Button btnContinueBuy; //加菜按钮
     private Button btnPay; //结账按钮
@@ -57,12 +68,12 @@ public class SuccessActivity extends Activity{
         btnContinueBuy.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                if(ispay){
+                if (ispay) {
                     //跳转到购物界面
                     startActivity(new Intent(getApplicationContext(), ShoppingActivity.class));
                     //结束当前界面
                     SuccessActivity.this.finish();
-                }else{
+                } else {
                     showDialog("您尚未支付当前订单！请结账后再加菜！");
                 }
             }
@@ -73,20 +84,20 @@ public class SuccessActivity extends Activity{
             @Override
             public void onClick(View v) {
                 //保存订单信息至SQLite数据库中，可惜Litepal框架使用失败。
-                //transformData();
-                if(ispay){
+//                transformData();
+                if (ispay) {
                     showDialog("该订单您已支付过啦！");
-                }else{
-                    int myMoney= ShareUtils.getInt(SuccessActivity.this,"money",1);
-                    if(totalPrice>myMoney){
+                } else {
+                    int myMoney = ShareUtils.getInt(SuccessActivity.this, "money", 1);
+                    if (totalPrice > myMoney) {
                         //当账户余额的钱不足以支付当前订单时
                         showDialogNoMoney();
-                    }else{
-                        myMoney-=totalPrice;
+                    } else {
+                        myMoney -= totalPrice;
                         //更新账户余额
-                        ShareUtils.putInt(SuccessActivity.this,"money",myMoney);
+                        ShareUtils.putInt(SuccessActivity.this, "money", myMoney);
                         //将订单标记为“已结账”,并将结账按钮设置为不可见状态
-                        ispay=true;
+                        ispay = true;
                         btnPay.setVisibility(View.INVISIBLE);
                         //结账成功后，客户选择返回主界面，还是继续加菜
                         showDialogFinish();
@@ -111,9 +122,9 @@ public class SuccessActivity extends Activity{
         orderResult.append("商品名\t\t\t数量\t\t\t\t价格\n");
         for (int i = 0; i < selectedProducts.size(); i++) { //遍历商品列表并往文本写入商品信息
             Product product = selectedProducts.get(i);
-            if(product.getName().length()==2){
+            if (product.getName().length() == 2) {
                 orderResult.append(product.getName() + "\t\t\t\t\t\t\t " + product.getSelectedCount() + " \t\t\t\t\t" + product.getPrice() * product.getSelectedCount() + "\n");
-            }else{
+            } else {
                 orderResult.append(product.getName() + "\t\t\t\t\t" + product.getSelectedCount() + "\t\t\t\t\t" + product.getPrice() * product.getSelectedCount() + "\n");
             }
             totalPrice += product.getPrice() * product.getSelectedCount(); //设置商品总价
@@ -128,8 +139,8 @@ public class SuccessActivity extends Activity{
         //获取当前系统时间(记录下单时间)
         SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss");
         Date date = new Date(System.currentTimeMillis());
-        nowTime=simpleDateFormat.format(date);
-        orderResult.append("时间："+nowTime + "\n");
+        nowTime = simpleDateFormat.format(date);
+        orderResult.append("时间：" + nowTime + "\n");
         //将订单结果信息设置到订单信息显示文字控件
         tvResult.setText(orderResult);
     }
@@ -137,37 +148,88 @@ public class SuccessActivity extends Activity{
     /**
      * 将该订单信息保存到数据库中，便于客户查询
      */
-    private void transformData(){
+    private void transformData() {
         Connector.getDatabase();//创建数据库
         Intent otherIntent = getIntent(); //获取信息输入界面传来的意图
         selectedProducts = otherIntent.getParcelableArrayListExtra("selectedProducts"); //从意图中获取被选择的的商品数据
         String name = otherIntent.getStringExtra("name"); //从意图获取客户姓名
         String phone = otherIntent.getStringExtra("phone"); //从意图获取手机号
         String tableId = otherIntent.getStringExtra("table"); //从意图获取用餐桌号
-        List<ProductOrder> productOrders=new ArrayList<>();
-        ProductOrder productOrder=new ProductOrder();
+        List<ProductOrder> productOrders = new ArrayList<>();
+        ProductOrder productOrder = new ProductOrder();
         for (int i = 0; i < selectedProducts.size(); i++) { //遍历商品列表并存入到productOrders列表中
             Product product = selectedProducts.get(i);
             productOrder.setFoodName(product.getName());
             productOrder.setNum(product.getSelectedCount());
-            productOrder.setPrice(product.getPrice()* product.getSelectedCount());
+            productOrder.setPrice(product.getPrice() * product.getSelectedCount());
             productOrders.add(productOrder);
         }
-        Order newOrder=new Order();
+        Order newOrder = new Order();
         newOrder.setSelectedProducts(productOrders);
         newOrder.setUserName(name);
         newOrder.setPhone(phone);
         newOrder.setTableId(tableId);
         newOrder.setTime(nowTime);
-        newOrder.save();
+
+        String postUrl = HttpUtil.HOST + "api/user/login";
+        //1.创建一个队列
+        RequestQueue queue = NoHttp.newRequestQueue();
+        //2.创建消息请求   参数1:String字符串,传网址  参数2:请求方式
+        final Request<JSONObject> request = NoHttp.createJsonObjectRequest(postUrl, RequestMethod.POST);
+        //3.利用队列去添加消息请求
+        //使用request对象添加上传的对象添加键与值,post方式添加上传的数据
+
+        request.setDefineRequestBodyForJson(new Gson().toJson(newOrder));
+
+        queue.add(1, request, new OnResponseListener<JSONObject>() {
+            @Override
+            public void onStart(int what) {
+
+            }
+
+            @Override
+            public void onSucceed(int what, Response<JSONObject> response) {
+                JSONObject res = response.get();
+                try {
+                    if (res.getInt("status") == 0) {
+                        JSONObject data = res.getJSONObject("data");
+                        //给用户的钱包余额设定金额
+                        ShareUtils.putInt(getApplicationContext(), "money", data.getInt("money"));
+                        ShareUtils.putInt(getApplicationContext(), "user_id", data.getInt("id"));
+                        ShareUtils.putString(getApplicationContext(), "user_true_name", data.getString("nickname"));
+                        ShareUtils.putString(getApplicationContext(), "user_true_phone", data.getString("phone"));
+                        ShareUtils.putString(getApplicationContext(), "user_true_mail", data.getString("email"));
+                        //登录成功，跳转到菜单展示的主页面
+                        Intent intent = new Intent(getApplicationContext(), OrderActivity.class);
+                        startActivity(intent);
+                        finish();
+                    } else {
+                        showDialog(res.getString("msg"));
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onFailed(int what, Response<JSONObject> response) {
+            }
+
+            @Override
+            public void onFinish(int what) {
+
+            }
+        });
+
     }
 
 
     /**
      * 为了方便，定义一个弹框控件的函数
+     *
      * @param msg 要显示的提示信息
      */
-    private void showDialog(String msg){
+    private void showDialog(String msg) {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setMessage(msg)
                 .setCancelable(false)
@@ -182,8 +244,8 @@ public class SuccessActivity extends Activity{
     /**
      * 当结账时钱不够的弹框提示
      */
-    private void showDialogNoMoney(){
-        AlertDialog.Builder dialog=new AlertDialog.Builder(SuccessActivity.this);
+    private void showDialogNoMoney() {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(SuccessActivity.this);
         dialog.setTitle("账户余额不足\n\n");
         dialog.setMessage("请您到充值页面进行充值后再结账！");
         dialog.setCancelable(false);
@@ -205,8 +267,8 @@ public class SuccessActivity extends Activity{
     /**
      * 成功结账后的弹框提示
      */
-    private void showDialogFinish(){
-        AlertDialog.Builder dialog=new AlertDialog.Builder(SuccessActivity.this);
+    private void showDialogFinish() {
+        AlertDialog.Builder dialog = new AlertDialog.Builder(SuccessActivity.this);
         dialog.setTitle("订单支付成功！\n\n");
         dialog.setMessage("您是否想继续加菜？");
         dialog.setCancelable(false);

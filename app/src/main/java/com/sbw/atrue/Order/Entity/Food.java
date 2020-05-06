@@ -14,11 +14,11 @@ public class Food implements Serializable {
     /**
      * 菜品图像的存储路径，如“R.drawable.mango”
      */
-    private int imageId;
+    private String imageId;
     //菜品描述
     private String description;
 
-    public Food(String name, int imageId,String description) {
+    public Food(String name, String imageId,String description) {
         this.name = name;
         this.imageId = imageId;
         this.description=description;
@@ -28,7 +28,7 @@ public class Food implements Serializable {
         return name;
     }
 
-    public int getImageId() {
+    public String getImageId() {
         return imageId;
     }
 
