@@ -24,6 +24,7 @@ import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.appcompat.widget.Toolbar;
 
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -31,10 +32,12 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.sbw.atrue.Order.Entity.Food;
+import com.sbw.atrue.Order.Entity.Product;
 import com.sbw.atrue.Order.Util.FoodAdapter;
 import com.sbw.atrue.Order.R;
 import com.sbw.atrue.Order.Util.FoodFctory;
 import com.sbw.atrue.Order.Util.HttpUtil;
+import com.sbw.atrue.Order.Util.MyListener;
 import com.sbw.atrue.Order.Util.ShareUtils;
 import com.yanzhenjie.nohttp.NoHttp;
 import com.yanzhenjie.nohttp.RequestMethod;
@@ -47,7 +50,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -76,7 +81,7 @@ public class OrderActivity extends AppCompatActivity {
         mDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
         NavigationView navView = (NavigationView) findViewById(R.id.nav_view);
         //获得ActionBar的实例，虽然此ActionBar具体实现是由ToolBar来完成的
-        ActionBar actionBar = getSupportActionBar();
+        final ActionBar actionBar = getSupportActionBar();
         if (actionBar != null) {
             //将ActionBar的导航按钮HomeAsUp显示出来（Toolbar标题栏最左侧的按钮图标默认为箭头，含义为返回上一级活动）
             actionBar.setDisplayHomeAsUpEnabled(true);
@@ -93,7 +98,20 @@ public class OrderActivity extends AppCompatActivity {
                 switch (menuItem.getItemId()) {
                     case R.id.nav_Order:
                         //跳转到订单界面
-                        startActivity(new Intent(OrderActivity.this, ReadOrderActivity.class));
+                        orderDetail(new MyListener<JSONArray>() {
+                            @Override
+                            public void onSuccess(JSONArray array) throws JSONException {
+                                StringBuilder sb = new StringBuilder();
+                                for (int i = 0; i < array.length(); i++) {
+                                    sb.append(getDataString(array.getJSONObject(i)));
+                                }
+                                Log.e("demo", "onSuccess: "+sb.toString() );
+                                Intent intent = new Intent(OrderActivity.this, ReadOrderActivity.class);
+                                intent.putExtra("content", sb.toString());
+                                startActivity(intent);
+                            }
+                        });
+
                         break;
                     case R.id.nav_money:
                         //跳转到钱包界面
@@ -138,6 +156,110 @@ public class OrderActivity extends AppCompatActivity {
             @Override
             public void onRefresh() {
                 refreshfoods();
+            }
+        });
+    }
+
+    /**
+     * 初始化页面数据
+     */
+    private void initDatas(String demo) {
+
+
+    }
+
+    private String getDataString(JSONObject data) throws JSONException {
+        double totalPrice = 0; //购买商品总价
+
+        ArrayList<Product> selectedProducts = new ArrayList<>();
+        JSONArray array = data.getJSONArray("selectedProducts");
+        for (int i = 0; i < array.length(); i++) {
+            JSONObject jsonObject = array.getJSONObject(i);
+            int id = 0;
+            String name = jsonObject.getString("foodName");
+            double price = jsonObject.getDouble("price");
+//            JSONObject product=jsonObject.getJSONObject("product");
+
+//            String picture = product.getString("picture");
+
+
+            int sale = 1;
+            String shopName = "";
+            String detail = "";
+            boolean isShowSubBtn = true;
+            Product product = new Product(id, name, price, "", sale, shopName, detail, isShowSubBtn);
+            product.setSelctCount(jsonObject.getInt("num"));
+            selectedProducts.add(product);
+        }
+
+        String name = data.getString("userName");
+        String phone = data.getString("phone"); //从意图获取手机号
+        String tableId = data.getString("tableId"); //从意图获取用餐桌号
+        StringBuilder orderResult = new StringBuilder(); //新建订单结果信息
+        orderResult.append("\t\t\t\t\t\t\t订单信息如下\n\n");//添加文本内容
+        orderResult.append("*************************\n");
+        orderResult.append("商品名\t\t\t数量\t\t\t\t价格\n");
+        for (int i = 0; i < selectedProducts.size(); i++) { //遍历商品列表并往文本写入商品信息
+            Product product = selectedProducts.get(i);
+            if (product.getName().length() == 2) {
+                orderResult.append(product.getName() + "\t\t\t\t\t\t\t " + product.getSelectedCount() + " \t\t\t\t\t" + product.getPrice() * product.getSelectedCount() + "\n");
+            } else {
+                orderResult.append(product.getName() + "\t\t\t\t\t" + product.getSelectedCount() + "\t\t\t\t\t" + product.getPrice() * product.getSelectedCount() + "\n");
+            }
+            totalPrice += product.getPrice() * product.getSelectedCount(); //设置商品总价
+        }
+
+        orderResult.append("*************************");
+        orderResult.append("\n共计：" + totalPrice + "元\n\n");
+        orderResult.append("\t\t\t\t\t\t\t您的信息如下\n");
+        orderResult.append("*************************\n");
+        orderResult.append("姓名：" + name + "\n");
+        orderResult.append("电话：" + phone + "\n");
+        orderResult.append("桌号：" + tableId + "\n");
+        //获取当前系统时间(记录下单时间)
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss");
+        Date date = new Date(System.currentTimeMillis());
+        String nowTime = simpleDateFormat.format(date);
+        orderResult.append("时间：" + nowTime + "\n");
+        //将订单结果信息设置到订单信息显示文字控件
+        return orderResult.toString();
+    }
+
+    private void orderDetail(final MyListener<JSONArray> literer) {
+        String postUrl = HttpUtil.HOST + "api/order/list";
+        //1.创建一个队列
+        RequestQueue queue = NoHttp.newRequestQueue();
+        //2.创建消息请求   参数1:String字符串,传网址  参数2:请求方式
+        final Request<JSONObject> request = NoHttp.createJsonObjectRequest(postUrl, RequestMethod.POST);
+        //3.利用队列去添加消息请求
+        //使用request对象添加上传的对象添加键与值,post方式添加上传的数据
+        request.add("userId", ShareUtils.getInt(getApplicationContext(), "user_id", 0));
+
+        queue.add(1, request, new OnResponseListener<JSONObject>() {
+            @Override
+            public void onStart(int what) {
+
+            }
+
+            @Override
+            public void onSucceed(int what, Response<JSONObject> response) {
+                JSONObject res = response.get();
+                try {
+                    if (res.getInt("status") == 0) {
+                        literer.onSuccess(res.getJSONArray("data"));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            @Override
+            public void onFailed(int what, Response<JSONObject> response) {
+            }
+
+            @Override
+            public void onFinish(int what) {
+
             }
         });
     }

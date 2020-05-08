@@ -145,4 +145,8 @@ public class Product implements Parcelable {
         dest.writeInt(selectedCount);
         dest.writeByte((byte) (isShowSubBtn ? 1 : 0));
     }
+
+    public void setSelctCount(int num) {
+        selectedCount = num;
+    }
 }

@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
@@ -21,6 +22,7 @@ import com.sbw.atrue.Order.Entity.ProductOrder;
 import com.sbw.atrue.Order.R;
 import com.sbw.atrue.Order.Entity.Product;
 import com.sbw.atrue.Order.Util.HttpUtil;
+import com.sbw.atrue.Order.Util.MyListener;
 import com.sbw.atrue.Order.Util.ShareUtils;
 import com.yanzhenjie.nohttp.NoHttp;
 import com.yanzhenjie.nohttp.RequestMethod;
@@ -30,11 +32,13 @@ import com.yanzhenjie.nohttp.rest.Request;
 import com.yanzhenjie.nohttp.rest.RequestQueue;
 import com.yanzhenjie.nohttp.rest.Response;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.litepal.tablemanager.Connector;
 
 public class SuccessActivity extends Activity {
+    private static final String TAG = SuccessActivity.class.getName();
     private TextView tvResult; //订单信息显示文字控件
     private Button btnContinueBuy; //加菜按钮
     private Button btnPay; //结账按钮
@@ -85,24 +89,74 @@ public class SuccessActivity extends Activity {
             public void onClick(View v) {
                 //保存订单信息至SQLite数据库中，可惜Litepal框架使用失败。
 //                transformData();
-                if (ispay) {
-                    showDialog("该订单您已支付过啦！");
-                } else {
-                    int myMoney = ShareUtils.getInt(SuccessActivity.this, "money", 1);
-                    if (totalPrice > myMoney) {
-                        //当账户余额的钱不足以支付当前订单时
-                        showDialogNoMoney();
-                    } else {
-                        myMoney -= totalPrice;
-                        //更新账户余额
-                        ShareUtils.putInt(SuccessActivity.this, "money", myMoney);
-                        //将订单标记为“已结账”,并将结账按钮设置为不可见状态
-                        ispay = true;
-                        btnPay.setVisibility(View.INVISIBLE);
-                        //结账成功后，客户选择返回主界面，还是继续加菜
-                        showDialogFinish();
+                MyListener<JSONObject> stringMyListener = new MyListener<JSONObject>() {
+                    @Override
+                    public void onSuccess(JSONObject data) throws JSONException {
+                        if (data.getInt("status") != 0) {
+                            showDialog(data.getString("msg"));
+                        } else {
+                            int myMoney = ShareUtils.getInt(SuccessActivity.this, "money", 1);
+                            if (totalPrice > myMoney) {
+                                //当账户余额的钱不足以支付当前订单时
+                                showDialogNoMoney();
+                            } else {
+                                myMoney -= totalPrice;
+                                //更新账户余额
+                                ShareUtils.putInt(SuccessActivity.this, "money", myMoney);
+                                //将订单标记为“已结账”,并将结账按钮设置为不可见状态
+                                ispay = true;
+                                btnPay.setVisibility(View.INVISIBLE);
+                                //结账成功后，客户选择返回主界面，还是继续加菜
+                                showDialogFinish();
+                            }
+                        }
                     }
+                };
+                payOrder(getIntent().getStringExtra("orderId"), stringMyListener);
+
+            }
+        });
+    }
+
+    private void payOrder(String orderId, final MyListener<JSONObject> listener) {
+        String postUrl = HttpUtil.HOST + "api/order/pay";
+        //1.创建一个队列
+        RequestQueue queue = NoHttp.newRequestQueue();
+        //2.创建消息请求   参数1:String字符串,传网址  参数2:请求方式
+        final Request<JSONObject> request = NoHttp.createJsonObjectRequest(postUrl, RequestMethod.POST);
+        //3.利用队列去添加消息请求
+        //使用request对象添加上传的对象添加键与值,post方式添加上传的数据
+        request.add("orderId", orderId);
+
+        queue.add(1, request, new OnResponseListener<JSONObject>() {
+            @Override
+            public void onStart(int what) {
+
+            }
+
+            @Override
+            public void onSucceed(int what, Response<JSONObject> response) {
+                JSONObject res = response.get();
+                try {
+                    if (res.getInt("status") == 0) {
+                        Log.w(TAG, "onSucceed: " + res.getString("data"));
+                        listener.onSuccess(res);
+                    } else {
+                        showDialog(res.getString("msg"));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    showDialog(e.getMessage());
                 }
+            }
+
+            @Override
+            public void onFailed(int what, Response<JSONObject> response) {
+            }
+
+            @Override
+            public void onFinish(int what) {
+
             }
         });
     }
@@ -288,5 +342,118 @@ public class SuccessActivity extends Activity {
             }
         });
         dialog.show();
+    }
+
+
+    /**
+     * 初始化页面数据
+     */
+    private void initDatas(String demo) {
+
+        tvResult.setText("ss\n\n\ndsss");
+        orderDetail(getIntent().getStringExtra("orderId"), new MyListener<JSONObject>() {
+            @Override
+            public void onSuccess(JSONObject data) throws JSONException {
+
+                selectedProducts = new ArrayList<>();
+                JSONArray array = data.getJSONArray("selectedProducts");
+                for (int i = 0; i < array.length(); i++) {
+                    JSONObject jsonObject = array.getJSONObject(i);
+                    int id = 0;
+                    String name = jsonObject.getString("foodName");
+                    double price = jsonObject.getDouble("price");
+                    String picture = jsonObject.getJSONObject("product").getString("picture");
+                    int sale = 1;
+                    String shopName = "";
+                    String detail = "";
+                    boolean isShowSubBtn = true;
+                    Product product = new Product(id, name, price, picture, sale, shopName, detail, isShowSubBtn);
+                    product.setSelctCount(jsonObject.getInt("num"));
+                    selectedProducts.add(product);
+                }
+                Log.w(TAG, "onSucceed: " + selectedProducts.size());
+
+                String name = data.getString("userName");
+                String phone = data.getString("phone"); //从意图获取手机号
+                String tableId = data.getString("tableId"); //从意图获取用餐桌号
+                StringBuilder orderResult = new StringBuilder(); //新建订单结果信息
+                orderResult.append("\t\t\t\t\t\t\t订单信息如下\n\n");//添加文本内容
+                orderResult.append("*************************\n");
+                orderResult.append("商品名\t\t\t数量\t\t\t\t价格\n");
+                for (int i = 0; i < SuccessActivity.this.selectedProducts.size(); i++) { //遍历商品列表并往文本写入商品信息
+                    Product product = SuccessActivity.this.selectedProducts.get(i);
+                    if (product.getName().length() == 2) {
+                        orderResult.append(product.getName() + "\t\t\t\t\t\t\t " + product.getSelectedCount() + " \t\t\t\t\t" + product.getPrice() * product.getSelectedCount() + "\n");
+                    } else {
+                        orderResult.append(product.getName() + "\t\t\t\t\t" + product.getSelectedCount() + "\t\t\t\t\t" + product.getPrice() * product.getSelectedCount() + "\n");
+                    }
+                    totalPrice += product.getPrice() * product.getSelectedCount(); //设置商品总价
+                }
+                Log.w(TAG, "onSucceed: " + totalPrice);
+
+                orderResult.append("*************************");
+                orderResult.append("\n共计：" + totalPrice + "元\n\n");
+                orderResult.append("\t\t\t\t\t\t\t您的信息如下\n");
+                orderResult.append("*************************\n");
+                orderResult.append("姓名：" + name + "\n");
+                orderResult.append("电话：" + phone + "\n");
+                orderResult.append("桌号：" + tableId + "\n");
+                //获取当前系统时间(记录下单时间)
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss");
+                Date date = new Date(System.currentTimeMillis());
+                nowTime = simpleDateFormat.format(date);
+                orderResult.append("时间：" + nowTime + "\n");
+                //将订单结果信息设置到订单信息显示文字控件
+                Log.w(TAG, "onSucceed: " + orderResult);
+                tvResult.setText(orderResult);
+                Log.w(TAG, "onSucceed: " + orderResult);
+                initEvents(); //初始化控件事件
+            }
+        });
+
+    }
+
+    private void orderDetail(String orderId, final MyListener<JSONObject> literer) {
+        String postUrl = HttpUtil.HOST + "api/order/orderDetail";
+        //1.创建一个队列
+        RequestQueue queue = NoHttp.newRequestQueue();
+        //2.创建消息请求   参数1:String字符串,传网址  参数2:请求方式
+        final Request<JSONObject> request = NoHttp.createJsonObjectRequest(postUrl, RequestMethod.POST);
+        //3.利用队列去添加消息请求
+        //使用request对象添加上传的对象添加键与值,post方式添加上传的数据
+        request.add("userId", ShareUtils.getInt(getApplicationContext(), "user_id", 0));
+        request.add("orderId", orderId);
+
+        queue.add(1, request, new OnResponseListener<JSONObject>() {
+            @Override
+            public void onStart(int what) {
+
+            }
+
+            @Override
+            public void onSucceed(int what, Response<JSONObject> response) {
+                JSONObject res = response.get();
+                try {
+                    if (res.getInt("status") == 0) {
+                        Log.w(TAG, "onSucceed: " + res.getJSONObject("data").toString());
+                        literer.onSuccess(res.getJSONObject("data"));
+                    } else {
+                        showDialog(res.getString("msg"));
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    showDialog(e.getMessage());
+                }
+            }
+
+            @Override
+            public void onFailed(int what, Response<JSONObject> response) {
+            }
+
+            @Override
+            public void onFinish(int what) {
+
+            }
+        });
     }
 }

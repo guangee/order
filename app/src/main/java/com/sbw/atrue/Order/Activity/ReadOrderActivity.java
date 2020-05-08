@@ -131,7 +131,7 @@ public class ReadOrderActivity extends Activity {
         orderResult.append("时间："+ "2019年4月15日 11:24:06"+ "\n");
 
         //将订单结果信息设置到订单信息显示文字控件
-        tvResult.setText(orderResult);
+        tvResult.setText(getIntent().getStringExtra("content"));
 
     }
 }
